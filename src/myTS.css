@@ -1,0 +1,31 @@
+html, body {
+    margin: 0;
+    height: auto;
+}
+
+.Body {
+    //background-color:black;
+    //color:white;
+}
+
+.InputNumber{
+    width:50px;
+    display:inline-block;
+}
+.InputText{
+    width:150px;
+    display:inline-block;
+}
+.Title {
+    background: green;
+    color: white;
+}
+
+.TableTitle {
+    background-color: grey;//#688A08;
+}
+
+.Center {
+    margin-left: 5%;
+    width:90%;
+}

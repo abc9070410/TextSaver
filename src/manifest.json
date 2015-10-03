@@ -1,0 +1,38 @@
+{
+    "name": "__MSG__appName__",
+    "manifest_version": 2,
+    "version": "0.5.0.0",
+    "description": "__MSG__appDesc__",
+    "icons": {
+        "16": "icon16.png",
+        "48": "icon48.png",
+        "128": "icon128.png"
+    },
+    "default_locale": "zh_TW",
+    "permissions": [
+        "tabs", "storage", "http://*/*", "https://*/*"
+    ],
+    "browser_action": {
+        "default_icon": "icon19.png",
+        "default_title": "Text Saver"
+    },
+    "background": {
+        "persistent": false,
+        "scripts": [
+            "background.js"
+        ]
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://*/*", "https://*/*"
+            ],
+            "css": [
+                "myTS.css"
+            ],
+            "js": [
+                "hcutf8.js", "myTS.js"
+            ]
+        }
+    ]
+}
