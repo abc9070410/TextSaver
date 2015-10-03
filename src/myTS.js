@@ -287,6 +287,7 @@ function getRegularText(sText, bSC2TC, bPre)
     var iTextLength = sText.length;
     var iDataLength = uft8Data.length;
     
+    /*
     for (var i = 0; i < iTextLength; i++)
     {
         sWord = sText[i];
@@ -304,6 +305,14 @@ function getRegularText(sText, bSC2TC, bPre)
     }
     
     return sOutput;
+    */
+    
+    for (var i = 0; i < uft8Data.length; i++)
+    {
+        sText = sText.replace(new RegExp(uft8Data[i][0], "g"), uft8Data[i][1]);
+    }
+    
+    return sText;
 }
 
 
@@ -348,6 +357,7 @@ function getInformation(sTitle)
     return sText;
 }
 
+/*
 function outputData()
 {
     var sOutput = "var uft8Data = [";
@@ -364,7 +374,7 @@ function outputData()
     
     return sOutput;
 }
-
+*/
 
 function handleSingle()
 {
