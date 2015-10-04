@@ -1,6 +1,6 @@
-# Batch Dict
+# Text Saver
 
-- A Chrome extension which could search multiple words once.
+- A Chrome extension which could store the text files from the web pages
 
 ![res](screenshot/ChromeExtension_TextSaver_1.PNG)
 
