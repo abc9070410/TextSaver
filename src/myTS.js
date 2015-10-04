@@ -14,12 +14,13 @@ var SITE_PTT = 2;
 var SITE_YAHOO = 3;
 var SITE_EYNY = 4;
 var SITE_CMSHY = 5;
+var SITE_LKNOVEL = 6;
 
 var gbStop = false;
 var giNowTabId = 0;
 var gaData = [];
-var gaasDataUrl = [];
-var gaasExtension = [];
+var gaasImageDataUrl = [];
+var gaasImageFileName = [];
 
 var gbTextDone = false;
 var gbImageDone = false;
@@ -120,17 +121,21 @@ function createText()
     var ePre = document.getElementsByTagName("pre")[0];
     var ePtt = document.getElementById("main-content");
     var eYahoo = document.getElementById("mediaarticlebody");
+    var eLKnovel = document.getElementById("tongyong2");
+    
     var aeEyny = document.getElementsByClassName("t_fsz");
     var aePage = document.getElementsByClassName("pg");
     var aeCmshy = document.getElementsByClassName("dccss"); // main page
     var eCmshy = document.getElementById("content"); // single page
     
+    
+    
     var sTitle, sText
     var sHtml, sUrl;
     var iBegin, iEnd;
     var sOriginalTitle = "";
-    var iTotalCount, sMainTitle;
-    var i;
+    var iTotalCount = 0, iNowCount = 0, sMainTitle;
+    var i, j;
     
     gbImageDone = gbTextDone = true; // purpose there are no images and no multiple pages.
     
@@ -180,11 +185,8 @@ function createText()
         
         for (i = 1; i <= iLastPageNum; i++)
         {
-            gaasExtension[i - 1] = [];
-            gaasDataUrl[i - 1] = [];
-
             sUrl = sFirstUrl.replace("-1-", "-" + i + "-");
-            sTitle = "" + i;
+            sTitle = "";// + i;
             sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_EYNY, iLastPageNum, i - 1);
             
             log("Request " + i + ":" + sTitle + ":" + sUrl);
@@ -209,9 +211,6 @@ function createText()
         log("IMAGE Exist:" + getImageUrls(eBody.innerHTML, SITE_EYNY));
         */
         
-        gaasExtension[0] = [];
-        gaasDataUrl[0] = [];
-        
         sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, "", SITE_EYNY, 1, 0);
         
         
@@ -223,6 +222,9 @@ function createText()
     }
     else if (aeCmshy && aeCmshy.length > 1)
     {
+        gbImageDone = true;
+        gbTextDone = false;
+        
         log("Exist aeCmshy");
         
         var abExisted = [];
@@ -268,6 +270,60 @@ function createText()
     {
         log("Exist eCmshy");
         sText = sTitle + "\r\n\r\n" + getRegularText(eCmshy.innerHTML);
+    }
+    else if (eLKnovel)
+    {
+        gbImageDone = gbTextDone = false;
+        
+        iTotalCount = 0;
+        
+        var aeTable = document.getElementsByTagName("table");
+        
+        sMainTitle = aeTable[0].getElementsByTagName("p")[0].innerHTML;
+        sMainTitle += " " + aeTable[0].getElementsByTagName("p")[1].innerHTML.split("     ")[0];
+
+        for (i = 2; i < aeTable.length; i++)
+        {
+            iTotalCount += aeTable[i].getElementsByTagName("a").length - 1;
+        }
+        
+        log("Exist eLKnovel:" + sMainTitle + ":" + iTotalCount);
+        
+        for (i = 2; i < aeTable.length; i++)
+        {
+            var aeA = aeTable[i].getElementsByTagName("a");
+            var sVolumeTitle = aeTable[i].getElementsByTagName("p")[0].innerHTML;
+            
+            log("" + i + ":" + sVolumeTitle);
+            
+            for (j = 1; j < aeA.length; j++)
+            {
+                sTitle = sVolumeTitle + " - " + aeA[j].innerHTML;
+                sUrl = aeA[j].href;
+                
+                sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_LKNOVEL, iTotalCount, iNowCount++);
+                
+                log("" + iNowCount + "_" + i + "." + j + ":" + sTitle + ":" + sUrl);
+                //break;
+            }
+            
+            /*
+            sHtml = aeCmshy[i].innerHTML;
+            iBegin = sHtml.indexOf("/chapter");
+            iEnd = sHtml.indexOf("\"", iBegin);
+            sUrl = "http://www.cmshy.com" + sHtml.substring(iBegin, iEnd);
+            
+            iBegin = sHtml.indexOf(">", iEnd) + 1;
+            iEnd = sHtml.indexOf("<", iBegin);
+            sTitle = sHtml.substring(iBegin, iEnd).trim();
+            
+            log("Request " + i + ":" + sTitle + ":" + sUrl);
+            
+            sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_CMSHY, iTotalCount, i);
+            */
+            //break;
+        }
+        
     }
     else // common case
     {
@@ -317,7 +373,7 @@ function createText()
     }
 }
 
-function getImageUrls(sHtml, iSite)
+function getImageUrls(sHtml, eDiv, iSite)
 {
     var asUrl = [];
     var asTemp, asTemp2, sUrl;
@@ -341,6 +397,14 @@ function getImageUrls(sHtml, iSite)
             {
                 asUrl[asUrl.length] = decodeHTMLEntities(sUrl);
             }
+        }
+    }
+    else if (iSite == SITE_LKNOVEL)
+    {
+        var aeImg = eDiv.getElementsByTagName("img");
+        for (i = 0; i < aeImg.length; i++)
+        {
+            asUrl[asUrl.length] = aeImg[i].src;
         }
     }
     return asUrl;
@@ -407,12 +471,12 @@ function setImageDownloadButton(sTitle)
     var zipImage = new JSZip();
     var zipDir = zipImage.folder(sTitle);
     
-    for (var i = 0; i < gaasDataUrl.length; i++)
+    for (var i = 0; i < gaasImageDataUrl.length; i++)
     {
-        for (var j = 0; j < gaasDataUrl[i].length; j++)
+        for (var j = 0; j < gaasImageDataUrl[i].length; j++)
         {
-            var sFileName = "" + i + "" + (j + 1) + gaasExtension[i][j];
-            zipDir.file(sFileName, dataUrlToBase64(gaasDataUrl[i][j]), {base64: true});
+            var sFileName = gaasImageFileName[i][j];
+            zipDir.file(sFileName, dataUrlToBase64(gaasImageDataUrl[i][j]), {base64: true});
             
             bNoImage = false;
         }
@@ -517,17 +581,17 @@ function handleSingleImage()
         var b64 = btoa(raw);
         */
         var b64 = _arrayBufferToBase64(arr);
-        var sBefore = gaasExtension[this.nowPage][this.index].indexOf("jpg") > 0 ? "data:image/jpeg;base64," : "data:image/png;base64,";
+        var sBefore = gaasImageFileName[this.nowPage][this.index].indexOf("jpg") > 0 ? "data:image/jpeg;base64," : "data:image/png;base64,";
         var dataUrl = sBefore + b64;
         
-        gaasDataUrl[this.nowPage][this.index] = dataUrl;
+        gaasImageDataUrl[this.nowPage][this.index] = dataUrl;
         
         if (!checkImageAllDone(this.mainTitle, this.total))
         {
             // set icon for image ??
         }
 
-        log("Image " + this.nowPage + "-" + this.index + " is received:" + dataUrl.length);
+        log("Image " + this.nowPage + "-" + this.index + "/" + this.total + " is received:" + dataUrl.length);
     }
 }
 
@@ -550,7 +614,8 @@ function handleSingle()
         
         var iBegin, iEnd;
         var i, j;
-        var sText, sTemp;
+        var sText = "", sTemp = "";
+        var asImageUrl = [];
         
 
         if (this.site == SITE_CMSHY)
@@ -586,13 +651,15 @@ function handleSingle()
             
             //log("IMAGE Exist:" + getImageUrls(sHtml, SITE_EYNY));
             
-            var asImageUrl = getImageUrls(sHtml, SITE_EYNY);
-            var iFileType;
+            asImageUrl = getImageUrls(sHtml, null, SITE_EYNY);
+
+            var sNo;
             
             for (i = 0; i < asImageUrl.length; i ++)
             {
-                gaasExtension[index][i] = asImageUrl[i].toLowerCase().indexOf(".png") > 0 ? ".png" : ".jpg";
-                sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, SITE_EYNY, index, asImageUrl.length, i);
+                sNo = i < 9 ? "" + index + "-0" + (i + 1) : "" + index + "-" + (i + 1);
+                gaasImageFileName[index][i] = sNo + getExtension(asImageUrl[i]);
+                sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, "", SITE_EYNY, index, asImageUrl.length, i);
                 
                 log("Request Image " + i + ":" + asImageUrl[i]);
             }
@@ -600,7 +667,7 @@ function handleSingle()
             var bNoImage = true;
             for (i = 0; i < iTotal; i++)
             {
-                if (gaasExtension[i] && gaasExtension[i].length > 0)
+                if (gaasImageFileName[i] && gaasImageFileName[i].length > 0)
                 {
                     bNoImage = false;
                     break;
@@ -635,9 +702,45 @@ function handleSingle()
                 log(" " + index + " parse done: LEN:" + sText.length);
             });
         }
+        else if (this.site == SITE_LKNOVEL)
+        {
+            var eDiv = document.createElement("div");
+            
+            eDiv.innerHTML = sHtml;
+            var eText = eDiv.getElementsByClassName("text")[0];
+            sText = "<br><br>" + eText.innerHTML;
+
+            asImageUrl = getImageUrls(sHtml, eText, SITE_LKNOVEL);
+            
+            var sNo;
+            for (i = 0; i < asImageUrl.length; i++)
+            {
+                sNo = i < 9 ? sTitle + "_0" + (i + 1) : sTitle + "_" + (i + 1);
+                gaasImageFileName[index][i] = sNo + getExtension(asImageUrl[i]);
+                sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, sTitle, SITE_LKNOVEL, index, asImageUrl.length, i);
+            }
+                
+            async(function() {
+                sTitle = getRegularText(sTitle);
+                sText = getRegularText(sText);
+            }, function() {
+                gaData[index] = sTitle + "\r\n\r\n" + sText;
+                
+                if (!checkAllDone(sMainTitle, iTotal))
+                {
+                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
+                }
+                log(" " + index + " parse done: LEN:" + sText.length);
+            });
+        }
         
         log("Orignial " + index + " LEN:" + sText.length);
     }
+}
+
+function getExtension(sImageUrl)
+{
+    return sImageUrl.toLowerCase().indexOf(".png") > 0 ? ".png" : ".jpg";
 }
 
 function checkAllDone(sMainTitle, iTotal)
@@ -731,16 +834,16 @@ function isAllDone(iTotalCount)
 
 function isImageAllDone(iTotalCount)
 {
-    for (var i = 0; i < gaasExtension.length; i++)
+    for (var i = 0; i < gaasImageFileName.length; i++)
     {
-        if (gaasDataUrl[i].length < gaasExtension[i].length)
+        if (gaasImageDataUrl[i].length < gaasImageFileName[i].length)
         {
             return false;
         }
         
-        for (var j = 0; j < gaasDataUrl[i].length; j++)
+        for (var j = 0; j < gaasImageDataUrl[i].length; j++)
         {
-            if (!gaasDataUrl[i][j])
+            if (!gaasImageDataUrl[i][j])
             {
                 return false;
             }
@@ -761,9 +864,12 @@ function sendHttpRequest(sUrl, onReadyFunction, sMainTitle, sTitle, iSite, iTota
     xhr.title = sTitle;
     xhr.mainTitle = sMainTitle;
     xhr.site = iSite;
+    
+    gaasImageFileName[i] = [];
+    gaasImageDataUrl[i] = [];
 }
 
-function sendImageHttpRequest(sUrl, onloadFunction, sMainTitle, iSite, iNowPage, iTotal, i)
+function sendImageHttpRequest(sUrl, onloadFunction, sMainTitle, sTitle, iSite, iNowPage, iTotal, i)
 {
     var xhr = new XMLHttpRequest();
     xhr.responseType = 'arraybuffer';
@@ -773,6 +879,7 @@ function sendImageHttpRequest(sUrl, onloadFunction, sMainTitle, iSite, iNowPage,
     xhr.index = i;
     xhr.total = iTotal;
     xhr.mainTitle = sMainTitle;
+    xhr.title = sTitle;
     xhr.site = iSite;
     xhr.nowPage = iNowPage;
 }
