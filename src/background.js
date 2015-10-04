@@ -38,7 +38,10 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     
     stopExecution(); // test.... not work ??
     
-    chrome.browserAction.setBadgeText({text: ""}); // init icon
+    if (gabTabStatus[tabId] != STATUS_DONE)
+    {
+        chrome.browserAction.setBadgeText({text: ""}); // init icon
+    }
 });
 
 function onClickButton()

@@ -18,6 +18,12 @@ var SITE_CMSHY = 5;
 var gbStop = false;
 var giNowTabId = 0;
 var gaData = [];
+var gaasDataUrl = [];
+var gaasExtension = [];
+
+var gbTextDone = false;
+var gbImageDone = false;
+
 var gChecked = {
         word: true,
         phoneticSymbol: true,
@@ -56,20 +62,29 @@ function addListener()
         function(request, sender, sendResponse) {
             if (request.greeting == "OutputText")
             {
-                console.log("[TS]OutputText");
+                log("OutputText");
                 var eDiv = document.getElementById("OUTPUT_TEXT_ID");
-                eDiv.click();
+                if (eDiv)
+                {
+                    eDiv.click();
+                }
+                
+                var eImageZipDiv = document.getElementById("OUTPUT_IMAGE_ZIP_ID");
+                if (eImageZipDiv)
+                {
+                    eImageZipDiv.click();
+                }
             }
             else if (request.greeting == "GetTabIdBack")
             {
                 giNowTabId = request.tabId;
-                console.log("[TS]GetTabIdBack:" + request.tabId);
+                log("GetTabIdBack:" + request.tabId);
                 
                 createText(); // start this extension after the tab is set
             }
             else if (request.greeting == "StopExecution")
             {
-                console.log("[TS]StopExecution");
+                log("StopExecution");
                 gbStop = true;
             }
     });
@@ -81,9 +96,23 @@ function createText()
     
     var sFirstUrl = window.location.href;
     
-    if (sFirstUrl.indexOf("/forum") > 0)
+    if ((sFirstUrl.indexOf("/forum") > 0 && sFirstUrl.indexOf("&tid=") < 0) ||
+        (sFirstUrl.indexOf("/search.php") > 0))
     {
         return;
+    }
+    
+    // OLD: http://www.eyny.com/forum.php?mod=viewthread&tid=8268832&highlight=%E8%87%B4%E5%91%BD%E6%AD%A6%E5%8A%9B
+    // NEW: http://www.eyny.com/thread-8268832-1-1.html
+    if (sFirstUrl.indexOf("http://www.eyny.com/") == 0 && 
+        sFirstUrl.indexOf("&tid=") > 0)
+    {
+        var sTid = sFirstUrl.split("&tid=")[1].split("&")[0];
+        sFirstUrl = "http://www.eyny.com/thread-" + sTid + "-1-1.html";
+        
+        window.location.href = sFirstUrl;
+        
+        log("EYNY new url:" + sFirstUrl);
     }
     
     var eBody = document.getElementsByTagName("body")[0];
@@ -103,23 +132,27 @@ function createText()
     var iTotalCount, sMainTitle;
     var i;
     
+    gbImageDone = gbTextDone = true; // purpose there are no images and no multiple pages.
+    
     if (eTitle)
     {
         sOriginalTitle = eTitle.innerHTML.trim();
         
-        sTitle = getRegularText(sOriginalTitle);
-        console.log("[TS]Exist <title> : " + sTitle);
+        sTitle = removeUnallowedWordInFileName(getRegularText(sOriginalTitle));
+        log("Exist <title> : " + sTitle);
     }
     
     if (ePre)
     {
-        console.log("[TS]Exist <pre>");
+        log("Exist <pre>");
 
         sText = sTitle + "\r\n\r\n" + getRegularText(ePre.innerHTML, true);
     }
     else if (aePage && aePage.length > 0)
     {
-        console.log("[TS]Exist multile pages");
+        gbImageDone = gbTextDone = false;
+        
+        log("Exist multile pages");
         
         sMainTitle = sTitle;
         
@@ -137,34 +170,52 @@ function createText()
         
         if (isNaN(iLastPageNum))
         {
-            console.log("[TS]Cannot get last page : " + sHtml);
+            log("Cannot get last page : " + sHtml);
             return;
         }
         
-        console.log("[TS]Total " + iLastPageNum + " pages");
+        log("Total " + iLastPageNum + " pages");
         
         
         
         for (i = 1; i <= iLastPageNum; i++)
         {
+            gaasExtension[i - 1] = [];
+            gaasDataUrl[i - 1] = [];
+
             sUrl = sFirstUrl.replace("-1-", "-" + i + "-");
             sTitle = "" + i;
             sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_EYNY, iLastPageNum, i - 1);
             
-            console.log("[TS]Request " + i + ":" + sTitle + ":" + sUrl);
+            log("Request " + i + ":" + sTitle + ":" + sUrl);
         }
     }
-    /*
-    else if (aeEyny && aeEyny.length > 0)
+    else if (aeEyny && aeEyny.length > 0) // only single EYNY page
     {
+        gbImageDone = gbTextDone = false;
+        
+        sMainTitle = sTitle;
+
+        /*
         sText = sTitle + "\r\n\r\n";
         
         for (i = 0; i < aeEyny.length; i++)
         {
-            sText += "\r\n\r\n" + getRegularText(aeEyny[i].innerHTML);
+            sText += "<br><br>" + aeEyny[i].innerHTML;
         }
+        
+        sText = getRegularText(sText);
+        
+        log("IMAGE Exist:" + getImageUrls(eBody.innerHTML, SITE_EYNY));
+        */
+        
+        gaasExtension[0] = [];
+        gaasDataUrl[0] = [];
+        
+        sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, "", SITE_EYNY, 1, 0);
+        
+        
     }
-    */
     else if (ePtt || eYahoo)
     {
         var eTempDiv = ePtt || eYahoo;
@@ -172,7 +223,7 @@ function createText()
     }
     else if (aeCmshy && aeCmshy.length > 1)
     {
-        console.log("[TS]Exist aeCmshy");
+        log("Exist aeCmshy");
         
         var abExisted = [];
         iTotalCount = 0;
@@ -207,7 +258,7 @@ function createText()
             iEnd = sHtml.indexOf("<", iBegin);
             sTitle = sHtml.substring(iBegin, iEnd).trim();
             
-            console.log("[TS]Request " + i + ":" + sTitle + ":" + sUrl);
+            log("Request " + i + ":" + sTitle + ":" + sUrl);
             
             sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_CMSHY, iTotalCount, i);
             //break;
@@ -215,12 +266,12 @@ function createText()
     }
     else if (eCmshy)
     {
-        console.log("[TS]Exist eCmshy");
+        log("Exist eCmshy");
         sText = sTitle + "\r\n\r\n" + getRegularText(eCmshy.innerHTML);
     }
     else // common case
     {
-        console.log("[TS]common case");
+        log("common case");
         
         var aeDiv = document.getElementsByTagName("div");
         var iLength = 0;
@@ -256,14 +307,59 @@ function createText()
         sText += getInformation(sOriginalTitle);
     }
     
-    if (sText && sTitle)
+    if (sText && sTitle && gbImageDone)
     {
         setDownloadButton(sTitle, sText);
         
-        console.log("[TS]Text complete parsed : " + sText.length);
+        log("Text complete parsed : " + sText.length);
         
-        setIconText("OK");
+        setIconText("OK!");
     }
+}
+
+function getImageUrls(sHtml, iSite)
+{
+    var asUrl = [];
+    var asTemp, asTemp2, sUrl;
+    
+    if (iSite == SITE_EYNY)
+    {
+        asTemp = sHtml.split(" id=\"aimg");
+
+        for (var i = 1; i < asTemp.length; i++)
+        {
+            asTemp2 = asTemp[i].split(" file=\"");
+            
+            if (asTemp2.length < 2)
+            {
+                continue;
+            }
+            
+            sUrl = asTemp2[1].split("\"")[0];
+            
+            if (sUrl.indexOf("http") == 0)
+            {
+                asUrl[asUrl.length] = decodeHTMLEntities(sUrl);
+            }
+        }
+    }
+    return asUrl;
+}
+
+function decodeHTMLEntities(str) 
+{
+    if(str && typeof str === 'string') 
+    {
+        var element = document.createElement('div');
+        
+        // strip script/html tags
+        str = str.replace(/<script[^>]*>([\S\s]*?)<\/script>/gmi, '');
+        str = str.replace(/<\/?\w(?:[^"'>]|"[^"]*"|'[^']*')*>/gmi, '');
+        element.innerHTML = str;
+        str = element.textContent;
+    }
+
+    return str;
 }
 
 function setNowTabId()
@@ -300,9 +396,51 @@ function setDownloadButton(sTitle, sText)
     eDiv.id = "OUTPUT_TEXT_ID";
     eDiv.href = sUrl;
     eDiv.download = sTitle + ".txt";
+
+    var eBody = document.getElementsByTagName("body")[0];
+    eBody.appendChild(eDiv);
+}
+
+function setImageDownloadButton(sTitle)
+{
+    var bNoImage = true;
+    var zipImage = new JSZip();
+    var zipDir = zipImage.folder(sTitle);
+    
+    for (var i = 0; i < gaasDataUrl.length; i++)
+    {
+        for (var j = 0; j < gaasDataUrl[i].length; j++)
+        {
+            var sFileName = "" + i + "" + (j + 1) + gaasExtension[i][j];
+            zipDir.file(sFileName, dataUrlToBase64(gaasDataUrl[i][j]), {base64: true});
+            
+            bNoImage = false;
+        }
+    }
+    
+    if (bNoImage)
+    {
+        return;
+    }
+    
+    var blob = zipImage.generate({type:"blob"});
+    var blobUrl = URL.createObjectURL(blob);
+    
+    var eDiv = document.createElement("a");
+    eDiv.id = "OUTPUT_IMAGE_ZIP_ID";
+    eDiv.href = blobUrl;
+    eDiv.download = sTitle + ".cbz";
+    
+    log("Image zip file is created");
     
     var eBody = document.getElementsByTagName("body")[0];
     eBody.appendChild(eDiv);
+}
+
+function dataUrlToBase64(sDataUrl)
+{
+    var iBegin = sDataUrl.indexOf( "," ) + 1;
+    return sDataUrl.substring( iBegin, sDataUrl.length );
 }
 
 function removeTag(sText)
@@ -351,6 +489,48 @@ function getInformation(sTitle)
     return sText;
 }
 
+function _arrayBufferToBase64( buffer ) 
+{
+    var binary = '';
+    var bytes = new Uint8Array( buffer );
+    var len = bytes.byteLength;
+    for (var i = 0; i < len; i++) {
+        binary += String.fromCharCode( bytes[ i ] );
+    }
+    return window.btoa( binary );
+}
+
+function handleSingleImage()
+{
+    if (this.readyState == 4)
+    {
+        var arr = new Uint8Array(this.response);
+
+        /*
+        // Convert the int array to a binary string
+        // We have to use apply() as we are converting an *array*
+        // and String.fromCharCode() takes one or more single values, not
+        // an array.
+        var raw = String.fromCharCode.apply(null, arr);
+
+        // This works!!!
+        var b64 = btoa(raw);
+        */
+        var b64 = _arrayBufferToBase64(arr);
+        var sBefore = gaasExtension[this.nowPage][this.index].indexOf("jpg") > 0 ? "data:image/jpeg;base64," : "data:image/png;base64,";
+        var dataUrl = sBefore + b64;
+        
+        gaasDataUrl[this.nowPage][this.index] = dataUrl;
+        
+        if (!checkImageAllDone(this.mainTitle, this.total))
+        {
+            // set icon for image ??
+        }
+
+        log("Image " + this.nowPage + "-" + this.index + " is received:" + dataUrl.length);
+    }
+}
+
 function handleSingle()
 {
     if (this.readyState == 4)
@@ -395,7 +575,7 @@ function handleSingle()
             }, function() {
                 gaData[index] = sTitle + "\r\n\r\n" + sText;
                 setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                console.log("[TS] " + index + " parse done: LEN:" + sText.length);
+                log(" " + index + " parse done: LEN:" + sText.length);
                 
                 checkAllDone(sMainTitle, iTotal);
             });
@@ -403,6 +583,34 @@ function handleSingle()
         else if (this.site == SITE_EYNY)
         {
             sText = "";
+            
+            //log("IMAGE Exist:" + getImageUrls(sHtml, SITE_EYNY));
+            
+            var asImageUrl = getImageUrls(sHtml, SITE_EYNY);
+            var iFileType;
+            
+            for (i = 0; i < asImageUrl.length; i ++)
+            {
+                gaasExtension[index][i] = asImageUrl[i].toLowerCase().indexOf(".png") > 0 ? ".png" : ".jpg";
+                sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, SITE_EYNY, index, asImageUrl.length, i);
+                
+                log("Request Image " + i + ":" + asImageUrl[i]);
+            }
+            
+            var bNoImage = true;
+            for (i = 0; i < iTotal; i++)
+            {
+                if (gaasExtension[i] && gaasExtension[i].length > 0)
+                {
+                    bNoImage = false;
+                    break;
+                }
+            }
+            
+            if (iTotal == index + 1 && bNoImage)
+            {
+                gbImageDone = true; // there are no images
+            }
             
             var eDiv = document.createElement("div");
             
@@ -419,14 +627,16 @@ function handleSingle()
                 sText = getRegularText(sText);
             }, function() {
                 gaData[index] = sTitle + "\r\n\r\n" + sText;
-                setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                console.log("[TS] " + index + " parse done: LEN:" + sText.length);
                 
-                checkAllDone(sMainTitle, iTotal);
+                if (!checkAllDone(sMainTitle, iTotal))
+                {
+                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
+                }
+                log(" " + index + " parse done: LEN:" + sText.length);
             });
         }
         
-        console.log("[TS]Orignial " + index + " LEN:" + sText.length);
+        log("Orignial " + index + " LEN:" + sText.length);
     }
 }
 
@@ -434,13 +644,43 @@ function checkAllDone(sMainTitle, iTotal)
 {
     if (isAllDone(iTotal))
     {
+        gbTextDone = true;
+        
         var sText = dataToText() + getInformation(sMainTitle);
         setDownloadButton(sMainTitle, sText);
+
+        if (gbImageDone)
+        {
+            setIconText("OK-");
+        }
         
-        setIconText("OK!");
+        log("Total " + iTotal + " volumes are all done !");
         
-        console.log("[TS]Total " + iTotal + " volumes are all done !");
+        return true;
     }
+    
+    return false;
+}
+
+function checkImageAllDone(sMainTitle, iTotal)
+{
+    if (isImageAllDone(iTotal))
+    {
+        gbImageDone = true;
+        
+        setImageDownloadButton(sMainTitle);
+        
+        if (gbTextDone)
+        {
+            setIconText("OK+");
+        }
+        
+        log("Total " + iTotal + " images are all done !");
+        
+        return true;
+    }
+    
+    return false;
 }
 
 function getDoneCount()
@@ -465,8 +705,12 @@ function dataToText()
     for (var i = 0; i < gaData.length; i++)
     {
         sText += gaData[i] + "\r\n\r\n";
-        sText += "======================== " + (i + 1);
-        sText += " ========================\r\n\r\n";
+        
+        if ((i + 1) != gaData.length)
+        {
+            sText += "======================== " + (i + 1);
+            sText += " ========================\r\n\r\n";
+        }
     }
     
     return sText;
@@ -479,6 +723,27 @@ function isAllDone(iTotalCount)
         if (gaData.length < i || !gaData[i])
         {
             return false;
+        }
+    }
+    
+    return true;
+}
+
+function isImageAllDone(iTotalCount)
+{
+    for (var i = 0; i < gaasExtension.length; i++)
+    {
+        if (gaasDataUrl[i].length < gaasExtension[i].length)
+        {
+            return false;
+        }
+        
+        for (var j = 0; j < gaasDataUrl[i].length; j++)
+        {
+            if (!gaasDataUrl[i][j])
+            {
+                return false;
+            }
         }
     }
     
@@ -498,6 +763,20 @@ function sendHttpRequest(sUrl, onReadyFunction, sMainTitle, sTitle, iSite, iTota
     xhr.site = iSite;
 }
 
+function sendImageHttpRequest(sUrl, onloadFunction, sMainTitle, iSite, iNowPage, iTotal, i)
+{
+    var xhr = new XMLHttpRequest();
+    xhr.responseType = 'arraybuffer';
+    xhr.onreadystatechange = onloadFunction;
+    xhr.open("GET", sUrl, true);
+    xhr.send();
+    xhr.index = i;
+    xhr.total = iTotal;
+    xhr.mainTitle = sMainTitle;
+    xhr.site = iSite;
+    xhr.nowPage = iNowPage;
+}
+
 function async(fFunction, callback) 
 {
     setTimeout(function() {
@@ -506,6 +785,12 @@ function async(fFunction, callback)
     }, 0);
 }
 
+function removeUnallowedWordInFileName(sFileName)
+{
+    // ex. OLD : [1\2/3:4*5?6"7<8>9|]
+    //     NEW : [1 2 3 4 5 6 7 8 9 ]
+    return sFileName.replace(/\\|\/|:|\*|\?|"|<|>|\|/g, " ");
+}
 
 function getRegularText(sText, bPre)
 {
@@ -547,7 +832,7 @@ function getRegularText(sText, bPre)
     var sOutput = "";
     var sWord = "";
     var iTextLength = sText.length;
-    var iDataLength = uft8Data.length;
+    var iDataLength = SC2TC_DATA.length;
     
     
     for (var i = 0; i < iTextLength; i++)
@@ -555,10 +840,10 @@ function getRegularText(sText, bPre)
         sWord = sText[i];
         for (var j = 0; j < iDataLength; j++)
         {
-            if (sText[i] == uft8Data[j][0])
+            if (sText[i] == SC2TC_DATA[j][0])
             {
-                //console.log("" + uft8Data[j][0] + "->" + uft8Data[j][1]);
-                sWord = uft8Data[j][1];
+                //console.log("" + SC2TC_DATA[j][0] + "->" + SC2TC_DATA[j][1]);
+                sWord = SC2TC_DATA[j][1];
                 break;
             }
         }
@@ -569,15 +854,18 @@ function getRegularText(sText, bPre)
     return sOutput;
     */
     
-    for (var i = 0; i < uft8Data.length; i++)
+    for (var i = 0; i < SC2TC_DATA.length; i++)
     {
-        sText = sText.replace(new RegExp(uft8Data[i][0], "g"), uft8Data[i][1]);
+        sText = sText.replace(new RegExp(SC2TC_DATA[i][0], "g"), SC2TC_DATA[i][1]);
     }
     
     return sText;
 }
 
-
+function log(sText)
+{
+    console.log("[TS]" + sText);
+}
 
 /*
 

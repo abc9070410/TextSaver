@@ -31,7 +31,7 @@
                 "myTS.css"
             ],
             "js": [
-                "hcutf8.js", "myTS.js"
+                "SC2TC.js", "jszip.min.js", "myTS.js"
             ]
         }
     ]
