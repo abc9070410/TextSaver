@@ -40,8 +40,8 @@ init();
 
 function init()
 {
-    console.log("[YD]INIT");
-
+    log("INIT");
+    
     //setLayout();  
 
     updateSetting();
@@ -58,7 +58,7 @@ function addListener()
 {
     //var eDiv = document.getElementById("BUTTON_ID");
     //eDiv.addEventListener("click", clickSearchButton);
-    
+
     chrome.extension.onMessage.addListener(
         function(request, sender, sendResponse) {
             if (request.greeting == "OutputText")
@@ -80,6 +80,8 @@ function addListener()
             {
                 giNowTabId = request.tabId;
                 log("GetTabIdBack:" + request.tabId);
+                
+                setIconText(""); // init icon
                 
                 createText(); // start this extension after the tab is set
             }
@@ -930,37 +932,7 @@ function getRegularText(sText, bPre)
         sText = asTemp[0].trim();
     }
     
-    /*
-    if (!bSC2TC)
-    {
-        return sText; // no need to Simplified Chinese -> Traditional Chinese
-    }
-    
-    var sOutput = "";
-    var sWord = "";
-    var iTextLength = sText.length;
-    var iDataLength = SC2TC_DATA.length;
-    
-    
-    for (var i = 0; i < iTextLength; i++)
-    {
-        sWord = sText[i];
-        for (var j = 0; j < iDataLength; j++)
-        {
-            if (sText[i] == SC2TC_DATA[j][0])
-            {
-                //console.log("" + SC2TC_DATA[j][0] + "->" + SC2TC_DATA[j][1]);
-                sWord = SC2TC_DATA[j][1];
-                break;
-            }
-        }
-        
-        sOutput += sWord;
-    }
-    
-    return sOutput;
-    */
-    
+    // simplified chinese -> traditional chinese
     for (var i = 0; i < SC2TC_DATA.length; i++)
     {
         sText = sText.replace(new RegExp(SC2TC_DATA[i][0], "g"), SC2TC_DATA[i][1]);

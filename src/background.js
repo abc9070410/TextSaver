@@ -12,7 +12,7 @@ chrome.browserAction.onClicked.addListener(onClickButton);
 chrome.extension.onMessage.addListener(onMyMessage);
 
 chrome.tabs.onActiveChanged.addListener(function(tabId, changeInfo, tab) {
-    //console.log("onActiveChanged");
+    console.log("onActiveChanged");
     
     if (gabTabStatus[tabId] == STATUS_DONE)
     {
@@ -28,10 +28,11 @@ chrome.tabs.onActiveChanged.addListener(function(tabId, changeInfo, tab) {
     }
 });
 chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
-    //console.log("onUpdated
+    console.log("onUpdated");
     
     if (gbSetIconDone)
     {
+        console.log("no set ''");
         gbSetIconDone = false;
         return;
     }
@@ -40,7 +41,7 @@ chrome.tabs.onUpdated.addListener(function(tabId, changeInfo, tab) {
     
     if (gabTabStatus[tabId] != STATUS_DONE)
     {
-        chrome.browserAction.setBadgeText({text: ""}); // init icon
+        //chrome.browserAction.setBadgeText({text: ""}); // init icon
     }
 });
 

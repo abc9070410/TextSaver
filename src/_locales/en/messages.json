@@ -1,9 +1,9 @@
 {
     "_appName": {
-        "message": "Batch Dict"
+        "message": "Text Saver"
     },
     "_appDesc": {
-        "message": "batch search on yahoo dictionary"
+        "message": "store the text files from the web pages"
     },
     "_appNote": {
         "message": ""
