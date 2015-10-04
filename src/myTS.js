@@ -15,6 +15,7 @@ var SITE_YAHOO = 3;
 var SITE_EYNY = 4;
 var SITE_CMSHY = 5;
 var SITE_LKNOVEL = 6;
+var SITE_LINOVEL = 7;
 
 var gbStop = false;
 var giNowTabId = 0;
@@ -105,18 +106,7 @@ function createText()
         return;
     }
     
-    // OLD: http://www.eyny.com/forum.php?mod=viewthread&tid=8268832&highlight=%E8%87%B4%E5%91%BD%E6%AD%A6%E5%8A%9B
-    // NEW: http://www.eyny.com/thread-8268832-1-1.html
-    if (sFirstUrl.indexOf("http://www.eyny.com/") == 0 && 
-        sFirstUrl.indexOf("&tid=") > 0)
-    {
-        var sTid = sFirstUrl.split("&tid=")[1].split("&")[0];
-        sFirstUrl = "http://www.eyny.com/thread-" + sTid + "-1-1.html";
-        
-        window.location.href = sFirstUrl;
-        
-        log("EYNY new url:" + sFirstUrl);
-    }
+    checkNowUrl(sFirstUrl); // relocate url if necessary
     
     var eBody = document.getElementsByTagName("body")[0];
     var eTitle = document.getElementsByTagName("title")[0];
@@ -124,6 +114,9 @@ function createText()
     var ePtt = document.getElementById("main-content");
     var eYahoo = document.getElementById("mediaarticlebody");
     var eLKnovel = document.getElementById("tongyong2");
+    var aeLInovel = document.getElementsByClassName("linovel-book-list");
+    var eLInovel = document.getElementById("J_content");
+
     
     var aeEyny = document.getElementsByClassName("t_fsz");
     var aePage = document.getElementsByClassName("pg");
@@ -200,22 +193,7 @@ function createText()
         
         sMainTitle = sTitle;
 
-        /*
-        sText = sTitle + "\r\n\r\n";
-        
-        for (i = 0; i < aeEyny.length; i++)
-        {
-            sText += "<br><br>" + aeEyny[i].innerHTML;
-        }
-        
-        sText = getRegularText(sText);
-        
-        log("IMAGE Exist:" + getImageUrls(eBody.innerHTML, SITE_EYNY));
-        */
-        
         sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, "", SITE_EYNY, 1, 0);
-        
-        
     }
     else if (ePtt || eYahoo)
     {
@@ -277,8 +255,6 @@ function createText()
     {
         gbImageDone = gbTextDone = false;
         
-        iTotalCount = 0;
-        
         var aeTable = document.getElementsByTagName("table");
         
         sMainTitle = aeTable[0].getElementsByTagName("p")[0].innerHTML;
@@ -308,24 +284,58 @@ function createText()
                 log("" + iNowCount + "_" + i + "." + j + ":" + sTitle + ":" + sUrl);
                 //break;
             }
-            
-            /*
-            sHtml = aeCmshy[i].innerHTML;
-            iBegin = sHtml.indexOf("/chapter");
-            iEnd = sHtml.indexOf("\"", iBegin);
-            sUrl = "http://www.cmshy.com" + sHtml.substring(iBegin, iEnd);
-            
-            iBegin = sHtml.indexOf(">", iEnd) + 1;
-            iEnd = sHtml.indexOf("<", iBegin);
-            sTitle = sHtml.substring(iBegin, iEnd).trim();
-            
-            log("Request " + i + ":" + sTitle + ":" + sUrl);
-            
-            sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_CMSHY, iTotalCount, i);
-            */
-            //break;
         }
         
+    }
+    else if (aeLInovel && aeLInovel.length > 0)
+    {
+        gbImageDone = gbTextDone = false;
+        
+        var asTemp = eTitle.innerHTML.split("\|");
+        
+        sMainTitle = removeUnallowedWordInFileName(getRegularText(asTemp[0] + " - " + asTemp[2]));
+        
+        var aeList = aeLInovel[0].getElementsByClassName("linovel-book-item");
+        
+        for (i = 0; i < aeList.length; i++)
+        {
+            iTotalCount += aeList[i].getElementsByTagName("a").length - 2;
+        }
+
+        log("Exist eLInovel:" + sMainTitle + ":" + iTotalCount);
+
+        for (i = 0; i < aeList.length; i++)
+        {
+            var aeA = aeList[i].getElementsByTagName("a");
+            var sVolumeTitle = aeA[1].innerHTML.trim();
+            
+            log("" + i + ":" + sVolumeTitle);
+
+            for (j = 2; j < aeA.length; j++)
+            {
+                sTitle = sVolumeTitle + " - " + aeA[j].innerHTML;
+                sUrl = aeA[j].href;
+                
+                sendHttpRequest(sUrl, handleSingle, sMainTitle, sTitle, SITE_LINOVEL, iTotalCount, iNowCount++);
+                
+                log("" + iNowCount + "_" + i + "." + j + ":" + sTitle + ":" + sUrl);
+                //break;
+            }
+        }
+        
+        
+    }
+    else if (eLInovel)
+    {
+        gbImageDone = gbTextDone = false;
+        
+        var asTemp = eTitle.innerHTML.split("\|");
+
+        sMainTitle = removeUnallowedWordInFileName(getRegularText(asTemp[0] + " - " + asTemp[1] + " - " + asTemp[2]));
+        
+        sTitle = sMainTitle;
+
+        sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, sTitle, SITE_LINOVEL, 1, 0);
     }
     else // common case
     {
@@ -375,6 +385,34 @@ function createText()
     }
 }
 
+function checkNowUrl(sFirstUrl)
+{
+    // OLD: http://www.eyny.com/forum.php?mod=viewthread&tid=8268832&highlight=%E8%87%B4%E5%91%BD%E6%AD%A6%E5%8A%9B
+    // NEW: http://www.eyny.com/thread-8268832-1-1.html
+    if (sFirstUrl.indexOf("http://www.eyny.com/") == 0 && 
+        sFirstUrl.indexOf("&tid=") > 0)
+    {
+        var sTid = sFirstUrl.split("&tid=")[1].split("&")[0];
+        sFirstUrl = "http://www.eyny.com/thread-" + sTid + "-1-1.html";
+        
+        window.location.href = sFirstUrl;
+        
+        log("EYNY new url:" + sFirstUrl);
+    } 
+    
+    // OLD: http://www.linovel.com/mobile/vollist/624.html
+    // NEW: http://www.linovel.com/n/vollist/624.html
+    else if (sFirstUrl.indexOf("http://www.linovel.com/mobile/vollist/") == 0)
+    {
+        
+        sFirstUrl = sFirstUrl.replace("/mobile/", "/n/");
+        
+        window.location.href = sFirstUrl;
+        
+        log("LInovel new url:" + sFirstUrl);
+    }
+}
+
 function getImageUrls(sHtml, eDiv, iSite)
 {
     var asUrl = [];
@@ -408,7 +446,18 @@ function getImageUrls(sHtml, eDiv, iSite)
         {
             asUrl[asUrl.length] = aeImg[i].src;
         }
+    } 
+    else if (iSite == SITE_LINOVEL)
+    { // http://www.linovel.com/illustration/image/20120815/20120815164812_47225.jpg
+        var asImg = sHtml.split("\"[img]");
+        var sBaseUrl = window.location.href.split("/n/")[0];
+        
+        for (i = 1; i < asImg.length; i++)
+        {
+            asUrl[asUrl.length] = sBaseUrl + asImg[i].split("[")[0];
+        }
     }
+
     return asUrl;
 }
 
@@ -469,35 +518,51 @@ function setDownloadButton(sTitle, sText)
 
 function setImageDownloadButton(sTitle)
 {
-    var bNoImage = true;
     var zipImage = new JSZip();
     var zipDir = zipImage.folder(sTitle);
+    
+    var iImageCount = 0;
+    var sFileName = "";
+    var sImageDataUrl = "";
     
     for (var i = 0; i < gaasImageDataUrl.length; i++)
     {
         for (var j = 0; j < gaasImageDataUrl[i].length; j++)
         {
-            var sFileName = gaasImageFileName[i][j];
-            zipDir.file(sFileName, dataUrlToBase64(gaasImageDataUrl[i][j]), {base64: true});
+            sFileName = gaasImageFileName[i][j];
+            sImageDataUrl = gaasImageDataUrl[i][j];
+            zipDir.file(sFileName, dataUrlToBase64(sImageDataUrl), {base64: true});
             
-            bNoImage = false;
+            iImageCount++;
         }
     }
     
-    if (bNoImage)
+    if (iImageCount == 0)
     {
         return;
     }
     
-    var blob = zipImage.generate({type:"blob"});
-    var blobUrl = URL.createObjectURL(blob);
-    
     var eDiv = document.createElement("a");
     eDiv.id = "OUTPUT_IMAGE_ZIP_ID";
-    eDiv.href = blobUrl;
-    eDiv.download = sTitle + ".cbz";
     
-    log("Image zip file is created");
+    if (iImageCount > 1)
+    {
+        var blob = zipImage.generate({type:"blob"});
+        var blobUrl = URL.createObjectURL(blob);
+        eDiv.href = blobUrl;
+        eDiv.download = sTitle + ".cbz";
+        
+        log("Image zip file is created");
+    }
+    else // only one image file
+    {
+        var asTemp = sFileName.split("\.");
+        
+        eDiv.href = sImageDataUrl;
+        eDiv.download = sTitle + "." + asTemp[asTemp.length - 1];
+        
+        log("Image file is created");
+    }
     
     var eBody = document.getElementsByTagName("body")[0];
     eBody.appendChild(eDiv);
@@ -588,9 +653,10 @@ function handleSingleImage()
         
         gaasImageDataUrl[this.nowPage][this.index] = dataUrl;
         
-        if (!checkImageAllDone(this.mainTitle, this.total))
+        if (gbTextDone && !checkImageAllDone(this.mainTitle))
         {
             // set icon for image ??
+            setIconText("" + parseInt((getImageDoneCount() * 100 / getTotalImageCount()), 10) + "%");
         }
 
         log("Image " + this.nowPage + "-" + this.index + "/" + this.total + " is received:" + dataUrl.length);
@@ -714,6 +780,8 @@ function handleSingle()
 
             asImageUrl = getImageUrls(sHtml, eText, SITE_LKNOVEL);
             
+            sTitle = getRegularText(sTitle);
+            
             var sNo;
             for (i = 0; i < asImageUrl.length; i++)
             {
@@ -723,7 +791,47 @@ function handleSingle()
             }
                 
             async(function() {
-                sTitle = getRegularText(sTitle);
+                sText = getRegularText(sText);
+            }, function() {
+                gaData[index] = sTitle + "\r\n\r\n" + sText;
+                
+                if (!checkAllDone(sMainTitle, iTotal))
+                {
+                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
+                }
+                log(" " + index + " parse done: LEN:" + sText.length);
+            });
+        }
+        else if (this.site == SITE_LINOVEL)
+        {
+
+            var asTemp = sHtml.split("\"content\":\"");
+            
+            sText = "";
+            
+            for (i = 1; i < asTemp.length; i++)
+            {
+                if (asTemp[i].indexOf("[img]") == 0)
+                {
+                    continue;
+                }
+                
+                sText += "<br><br>" + asTemp[i].split("\",\"")[0];
+            }
+
+            asImageUrl = getImageUrls(sHtml, eText, SITE_LINOVEL);
+            
+            sTitle = getRegularText(sTitle);
+            
+            var sNo;
+            for (i = 0; i < asImageUrl.length; i++)
+            {
+                sNo = i < 9 ? sTitle + "_0" + (i + 1) : sTitle + "_" + (i + 1);
+                gaasImageFileName[index][i] = sNo + getExtension(asImageUrl[i]);
+                sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, sTitle, SITE_LINOVEL, index, asImageUrl.length, i);
+            }
+            
+            async(function() {
                 sText = getRegularText(sText);
             }, function() {
                 gaData[index] = sTitle + "\r\n\r\n" + sText;
@@ -767,9 +875,9 @@ function checkAllDone(sMainTitle, iTotal)
     return false;
 }
 
-function checkImageAllDone(sMainTitle, iTotal)
+function checkImageAllDone(sMainTitle)
 {
-    if (isImageAllDone(iTotal))
+    if (isImageAllDone())
     {
         gbImageDone = true;
         
@@ -780,13 +888,14 @@ function checkImageAllDone(sMainTitle, iTotal)
             setIconText("OK+");
         }
         
-        log("Total " + iTotal + " images are all done !");
+        log("Total " + getTotalImageCount() + " images are all done !");
         
         return true;
     }
     
     return false;
 }
+
 
 function getDoneCount()
 {
@@ -802,6 +911,38 @@ function getDoneCount()
     
     return iCount;
 }
+
+function getImageDoneCount()
+{
+    var iCount = 0;
+    
+    for (var i = 0; i < gaasImageDataUrl.length; i++)
+    {
+        for (var j = 0; j < gaasImageDataUrl[i].length; j++)
+        {
+            if (gaasImageDataUrl[i][j])
+            {
+                iCount++;
+            }
+        }
+    }
+    
+    return iCount;
+}
+
+
+function getTotalImageCount()
+{
+    var iCount = 0;
+    
+    for (var i = 0; i < gaasImageFileName.length; i++)
+    {
+        iCount += gaasImageFileName[i].length;
+    }
+    
+    return iCount;
+}
+
 
 function dataToText()
 {
@@ -834,7 +975,7 @@ function isAllDone(iTotalCount)
     return true;
 }
 
-function isImageAllDone(iTotalCount)
+function isImageAllDone()
 {
     for (var i = 0; i < gaasImageFileName.length; i++)
     {
