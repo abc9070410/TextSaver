@@ -17,7 +17,7 @@
 - Notepad++
 - Chrome browser
 
-## Extern Library
+## External Library
 
 - JSZip (http://stuartk.com/jszip)
 
