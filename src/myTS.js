@@ -16,6 +16,7 @@ var SITE_EYNY = 4;
 var SITE_CMSHY = 5;
 var SITE_LKNOVEL = 6;
 var SITE_LINOVEL = 7;
+var SITE_MOJIM = 8;
 
 var gbStop = false;
 var giNowTabId = 0;
@@ -116,6 +117,7 @@ function createText()
     var eLKnovel = document.getElementById("tongyong2");
     var aeLInovel = document.getElementsByClassName("linovel-book-list");
     var eLInovel = document.getElementById("J_content");
+    var eMojim = document.getElementById("fsZ");
 
     
     var aeEyny = document.getElementsByClassName("t_fsz");
@@ -336,6 +338,19 @@ function createText()
         sTitle = sMainTitle;
 
         sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, sTitle, SITE_LINOVEL, 1, 0);
+    }
+    else if (eMojim)
+    {
+        sTitle = "";
+        
+        var aeX3 = document.getElementsByClassName("X3");
+        
+        if (aeX3.length >= 5)
+        {
+            sTitle = getRegularText(aeX3[2].innerHTML + "_" + aeX3[4].innerHTML);
+        }
+
+        sText = getRegularText(eMojim.innerHTML);
     }
     else // common case
     {
