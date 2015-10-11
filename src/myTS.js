@@ -397,6 +397,9 @@ function createText()
         log("Text complete parsed : " + sText.length);
         
         setIconText("OK!");
+        
+        
+        //downloadEpub(); for test 20151011
     }
 }
 
@@ -1088,11 +1091,15 @@ function getRegularText(sText, bPre)
         sText = asTemp[0].trim();
     }
     
+    /*
     // simplified chinese -> traditional chinese
     for (var i = 0; i < SC2TC_DATA.length; i++)
     {
         sText = sText.replace(new RegExp(SC2TC_DATA[i][0], "g"), SC2TC_DATA[i][1]);
     }
+    */
+    sText = jscc.toTC(sText);
+    
     
     return sText;
 }

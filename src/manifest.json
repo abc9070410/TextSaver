@@ -31,7 +31,7 @@
                 "myTS.css"
             ],
             "js": [
-                "SC2TC.js", "jszip.min.js", "myTS.js"
+                "jscc.js", "jszip.min.js", "txt2epub.js", "myTS.js"
             ]
         }
     ]
