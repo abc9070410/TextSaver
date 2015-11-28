@@ -7,9 +7,16 @@ var gbSetIconDone = false;
 var gabTabStatus = [];
 var gasTabBackupIcon = [];
 
+var gabNeedDownload = [];
 
-chrome.browserAction.onClicked.addListener(onClickButton);
-chrome.extension.onMessage.addListener(onMyMessage);
+init();
+
+function init()
+{
+    chrome.browserAction.onClicked.addListener(onClickButton);
+    chrome.extension.onMessage.addListener(onMyMessage);
+    restoreData();
+}
 
 chrome.tabs.onActiveChanged.addListener(function(tabId, changeInfo, tab) {
     console.log("onActiveChanged");
@@ -130,6 +137,22 @@ function onMyMessage(details, sender, callback)
             */
         });
     }
+    else if (details.msg == "SetDownloadOption")
+    {
+        console.log("SetDownloadOption[" + details.index + "] set " + details.checked);
+        
+        gabNeedDownload[details.index] = details.checked;
+    }
+    else if (details.msg == "GetDownloadOption")
+    {
+        if (callback) {
+            callback({
+                checked: gabNeedDownload
+            });
+
+            return true;
+        }
+    }
 }
 
 function setIconText(sText)
@@ -166,4 +189,29 @@ function stopExecution()
     });
 }
 
+
+function storeData(asData)
+{
+    console.log("StoreData : " + asData);
+    chrome.storage.local.set({'downloadData':asData});
+}
+
+
+function restoreData()
+{
+    chrome.storage.local.get('downloadData', function(items) {
+        var asData = items.urlData;
+
+        // stored the data before
+        if (asData)
+        {
+            gabNeedDownload = asData;
+        }
+        else // store the initial setting
+        {
+            gabNeedDownload = [true, true, true];
+            storeData(gabNeedDownload); 
+        }
+    });
+}
 

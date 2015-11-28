@@ -18,23 +18,30 @@ var SITE_LKNOVEL = 6;
 var SITE_LINOVEL = 7;
 var SITE_MOJIM = 8;
 
+var END_SYMBOL = "≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡≡";
+
 var gbStop = false;
 var giNowTabId = 0;
 var gaData = [];
 var gaasImageDataUrl = [];
 var gaasImageFileName = [];
 
+// The information for Epub
+var gasChapterContent = [];
+var gasChapterTitle = [];
+var gsBookAuthor;
+var gsBookTitle;
+var gbTitleAndAuthorParsed = false;
+
+
 var gbTextDone = false;
 var gbImageDone = false;
 
-var gChecked = {
-        word: true,
-        phoneticSymbol: true,
-        sound: false,
-        lexical: true,
-        explanation: true,
-        example: true
-    };
+var gEpub;
+
+var gbNeedDownloadText = true;
+var gbNeedDownloadImage = true;
+var gbNeedDownloadEpub = true;
 
 //window.onload = init;
 
@@ -54,6 +61,16 @@ function init()
 function updateSetting()
 {
     setNowTabId();
+    
+    chrome.extension.sendMessage({
+        msg: "GetDownloadOption",
+    }, function(response) {
+        log("GetDownloadOption Done : " + response.checked);
+        
+        gbNeedDownloadText = response.checked[0];
+        gbNeedDownloadImage = response.checked[1];
+        gbNeedDownloadEpub = response.checked[2];
+    });
 }
 
 function addListener()
@@ -77,6 +94,12 @@ function addListener()
                 {
                     eImageZipDiv.click();
                 }
+                
+                var eEpubDiv = document.getElementById("OUTPUT_EPUB_ID");
+                if (eEpubDiv)
+                {
+                    eEpubDiv.click();
+                }
             }
             else if (request.greeting == "GetTabIdBack")
             {
@@ -95,15 +118,33 @@ function addListener()
     });
 }
 
+
+function downloadText(sFileName, sText)
+{
+    var blob = new Blob([sText], {type: "text/plain;charset=utf-8"});
+    var sUrl = URL.createObjectURL(blob);
+
+    var eDiv = document.createElement("a");
+    eDiv.id = "DOWNLOAD_TEXT_FILE_ID";
+    eDiv.href = sUrl;
+    eDiv.download = sFileName + ".txt";
+    eDiv.target = "_blank";
+    
+    document.getElementsByTagName("body")[0].appendChild(eDiv);
+    
+    eDiv.click();
+}
+
 function createText()
 {
     gaData = [];
     
     var sFirstUrl = window.location.href;
     
-    if ((sFirstUrl.indexOf("/forum") > 0 && sFirstUrl.indexOf("&tid=") < 0) ||
+    if ((sFirstUrl.indexOf("/forum") > 0 && sFirstUrl.indexOf("&tid=") < 0 && sFirstUrl.indexOf("?tid") < 0) ||
         (sFirstUrl.indexOf("/search.php") > 0))
     {
+        log("Not Parse : " + sFirstUrl);
         return;
     }
     
@@ -134,6 +175,41 @@ function createText()
     var iTotalCount = 0, iNowCount = 0, sMainTitle;
     var i, j;
     
+    sHtml = eBody.innerHTML;
+    iEnd = sHtml.indexOf(".mp3");
+    iEnd = sHtml.indexOf(".mp3", iEnd + 1);
+    
+    //downloadText("page.html", sHtml);=
+    
+    if (iEnd > 0)
+    {
+        // http://broadcast.ivy.com.tw/broadcast/BoardData/Enjoy/mp3/5025_1.mp3
+        iEnd += 4;
+        //var sToken = sHtml.substring(iEnd, iEnd + 1);
+       
+        iBegin = sHtml.lastIndexOf("\"", iEnd - 1) + 1;
+        var sMp3Url = "http://broadcast.ivy.com.tw/broadcast/" + sHtml.substring(iBegin, iEnd);
+        log("Exist MP3 : " + sMp3Url);
+        
+        var sSubDate = document.getElementById("ctl00_ContentPlaceHolder1_lblDate").innerHTML.replace("/", ".");
+        var eSubTitle = document.getElementById("ctl00_ContentPlaceHolder1_lblSubTitle");
+         
+        sTitle = sSubDate + "_" + document.getElementById("ctl00_ContentPlaceHolder1_lblTitle").innerHTML;
+        sTitle += "_" + eSubTitle.innerHTML;
+        
+        sTitle = sTitle.trim();
+        
+        var eDiv = document.createElement("a");
+        eDiv.id = "LINK_MP3_ID";
+        eDiv.href = sMp3Url;
+        eDiv.innerHTML = sTitle + ".mp3";
+        eDiv.download = sTitle + ".mp3";
+        eSubTitle.appendChild(eDiv);
+        //log("Exist Mp3 : " + iEnd);
+    }
+    
+    
+    
     gbImageDone = gbTextDone = true; // purpose there are no images and no multiple pages.
     
     if (eTitle)
@@ -150,14 +226,14 @@ function createText()
 
         sText = sTitle + "\r\n\r\n" + getRegularText(ePre.innerHTML, true);
     }
-    else if (aePage && aePage.length > 0)
+    else if (aePage && aePage.length > 0) // multiple EYNY pages
     {
         gbImageDone = gbTextDone = false;
         
         log("Exist multile pages");
         
         sMainTitle = sTitle;
-        
+
         sHtml = aePage[0].innerHTML;
         
         sHtml = sHtml.split("\"nxt\"")[0];
@@ -194,7 +270,7 @@ function createText()
         gbImageDone = gbTextDone = false;
         
         sMainTitle = sTitle;
-
+        
         sendHttpRequest(sFirstUrl, handleSingle, sMainTitle, "", SITE_EYNY, 1, 0);
     }
     else if (ePtt || eYahoo)
@@ -378,7 +454,7 @@ function createText()
         }
         
         // parse the whole body if the parsed text is too short
-        if (sText.length < 1000)
+        if (sText && sText.length < 1000)
         {
             sText = getRegularText(eBody.innerHTML);            
         }
@@ -399,8 +475,45 @@ function createText()
         setIconText("OK!");
         
         
-        //downloadEpub(); for test 20151011
+        //downloadEpub(); //for test 20151011
     }
+}
+
+function parseTitleAndAuthor(sTitle, sHtml, iSite)
+{
+    if (gbTitleAndAuthorParsed)
+    {
+        return;
+    }
+    
+    gbTitleAndAuthorParsed = true;
+    
+    if (iSite == SITE_EYNY)
+    {
+        sTitle = sTitle.replace(/(【|】|《連載中》|《全文完》)/g, "");
+        var asTemp = sTitle.split("-"); 
+        
+        if (asTemp.length > 1)
+        {
+            gsBookAuthor = asTemp[0];
+            gsBookTitle = asTemp[1];
+        }
+        else
+        {
+            gsBookAuthor = "";
+            gsBookTitle = sTitle;
+        }
+    }
+    else
+    {
+        gsBookTitle = sTitle;
+        gsBookAuthor = "";
+    }
+    
+    log("Book Title : " + gsBookTitle);
+    log("Book Author: " + gsBookAuthor);
+    
+    gEpub = new JSTxt2epub.newEpubFile(gsBookTitle, gsBookAuthor);
 }
 
 function checkNowUrl(sFirstUrl)
@@ -454,6 +567,8 @@ function getImageUrls(sHtml, eDiv, iSite)
             if (sUrl.indexOf("http") == 0)
             {
                 asUrl[asUrl.length] = decodeHTMLEntities(sUrl);
+                
+                //log("IMG>> " + asUrl.length + ":" + asUrl[asUrl.length - 1]);
             }
         }
     }
@@ -521,6 +636,11 @@ function setIconText(sText)
 
 function setDownloadButton(sTitle, sText)
 {
+    if (!gbNeedDownloadText)
+    {
+        return;
+    }
+    
     var blob = new Blob([sText], {type: "text/plain;charset=utf-8"});
     var sUrl = URL.createObjectURL(blob);
     
@@ -534,8 +654,47 @@ function setDownloadButton(sTitle, sText)
     eBody.appendChild(eDiv);
 }
 
+function setEpubDownloadButton(sTitle)
+{
+    if (!gbNeedDownloadEpub)
+    {
+        return;
+    }
+    
+    if (gEpub)
+    {
+        for (var i = 0; i < gasChapterTitle.length; i++)
+        {
+            for (var j = 0; j < gasChapterTitle[i].length; j++)
+            {
+                gEpub.addChapter(gasChapterTitle[i][j], gasChapterContent[i][j]);
+            }
+        }
+        
+        if (gaasImageDataUrl[0][0])
+        {
+            gEpub.addCoverImage(gaasImageDataUrl[0][0]);
+        }
+    }
+
+    var eDiv = document.createElement("a");
+    eDiv.id = "OUTPUT_EPUB_ID";
+    
+    eDiv.href = gEpub.generateBlobUrl();
+    eDiv.download = sTitle + ".epub";
+    
+    //eDiv.click();
+    var eBody = document.getElementsByTagName("body")[0];
+    eBody.appendChild(eDiv);
+}
+
 function setImageDownloadButton(sTitle)
 {
+    if (!gbNeedDownloadImage)
+    {
+        return;
+    }
+    
     var zipImage = new JSZip();
     var zipDir = zipImage.folder(sTitle);
     
@@ -671,12 +830,12 @@ function handleSingleImage()
         
         gaasImageDataUrl[this.nowPage][this.index] = dataUrl;
         
-        if (gbTextDone && !checkImageAllDone(this.mainTitle))
+        if (!checkImageAllDone(this.mainTitle) && gbTextDone)
         {
             // set icon for image ??
             setIconText("" + parseInt((getImageDoneCount() * 100 / getTotalImageCount()), 10) + "%");
         }
-
+        
         log("Image " + this.nowPage + "-" + this.index + "/" + this.total + " is received:" + dataUrl.length);
     }
 }
@@ -690,7 +849,7 @@ function handleSingle()
             return;
         }
 
-        console.log("-------------" + this.index + "----------------");
+        log("------- " + this.index + " -------");
         
         var sHtml = this.responseText;
         var index = this.index;
@@ -702,7 +861,9 @@ function handleSingle()
         var i, j;
         var sText = "", sTemp = "";
         var asImageUrl = [];
+        var sChapterTitle, sChapterContent;
         
+        parseTitleAndAuthor(sMainTitle, sHtml, this.site);
 
         if (this.site == SITE_CMSHY)
         {
@@ -710,26 +871,8 @@ function handleSingle()
             iBegin = sHtml.indexOf(">", iBegin) + 1;
             iEnd = sHtml.indexOf("</div>", iBegin);
             sText = sHtml.substring(iBegin, iEnd).trim();
-            
-            /* // 1. synchronous method
-            sText = getRegularText(sText, true);
-            
-            gaData[this.index] = this.title + "\r\n\r\n" + sText;
-            
-            setIconText("" + parseInt((getDoneCount() * 100 / this.total), 10) + "%");
-            */
-            
-            // 2. asynchronous method
-            async(function() {
-                sTitle = getRegularText(sTitle);
-                sText = getRegularText(sText);
-            }, function() {
-                gaData[index] = sTitle + "\r\n\r\n" + sText;
-                setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                log(" " + index + " parse done: LEN:" + sText.length);
-                
-                checkAllDone(sMainTitle, iTotal);
-            });
+
+            setAndGetTextProcess(index, iTotal, sText, sMainTitle, sTitle, false);
         }
         else if (this.site == SITE_EYNY)
         {
@@ -762,31 +905,30 @@ function handleSingle()
             
             if (iTotal == index + 1 && bNoImage)
             {
-                gbImageDone = true; // there are no images
+                gbImageDone = true; // there are no images waitting for download
             }
             
             var eDiv = document.createElement("div");
             
             eDiv.innerHTML = sHtml;
             var aeEyny = eDiv.getElementsByClassName("t_fsz");
-
+            var asTemp2;
             for (i = 0; i < aeEyny.length; i++)
             {
-                sText += "<br><br>" + aeEyny[i].innerHTML;
+                /*
+                sChapterContent = aeEyny[i].innerHTML;
+                asTemp2 = sChapterContent.split(/\n<br/);
+                
+                if (asTemp2.length > 1)
+                {
+                    sChapterTitle = asTemp2[1];
+                    log(i + " >> " + asTemp2[1]);
+                }
+                */
+                sText += "<br/>" + END_SYMBOL + "<br/>" + aeEyny[i].innerHTML;
             }
             
-            async(function() {
-                sTitle = getRegularText(sTitle);
-                sText = getRegularText(sText);
-            }, function() {
-                gaData[index] = sTitle + "\r\n\r\n" + sText;
-                
-                if (!checkAllDone(sMainTitle, iTotal))
-                {
-                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                }
-                log(" " + index + " parse done: LEN:" + sText.length);
-            });
+            setAndGetTextProcess(index, iTotal, sText, sMainTitle, "", true);
         }
         else if (this.site == SITE_LKNOVEL)
         {
@@ -794,7 +936,7 @@ function handleSingle()
             
             eDiv.innerHTML = sHtml;
             var eText = eDiv.getElementsByClassName("text")[0];
-            sText = "<br><br>" + eText.innerHTML;
+            sText = "<br/><br/>" + eText.innerHTML;
 
             asImageUrl = getImageUrls(sHtml, eText, SITE_LKNOVEL);
             
@@ -808,17 +950,7 @@ function handleSingle()
                 sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, sTitle, SITE_LKNOVEL, index, asImageUrl.length, i);
             }
                 
-            async(function() {
-                sText = getRegularText(sText);
-            }, function() {
-                gaData[index] = sTitle + "\r\n\r\n" + sText;
-                
-                if (!checkAllDone(sMainTitle, iTotal))
-                {
-                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                }
-                log(" " + index + " parse done: LEN:" + sText.length);
-            });
+            setAndGetTextProcess(index, iTotal, sText, sMainTitle, sTitle, true);
         }
         else if (this.site == SITE_LINOVEL)
         {
@@ -834,7 +966,7 @@ function handleSingle()
                     continue;
                 }
                 
-                sText += "<br><br>" + asTemp[i].split("\",\"")[0];
+                sText += "<br/><br/>" + asTemp[i].split("\",\"")[0];
             }
 
             asImageUrl = getImageUrls(sHtml, eText, SITE_LINOVEL);
@@ -849,20 +981,86 @@ function handleSingle()
                 sendImageHttpRequest(asImageUrl[i], handleSingleImage, sMainTitle, sTitle, SITE_LINOVEL, index, asImageUrl.length, i);
             }
             
-            async(function() {
-                sText = getRegularText(sText);
-            }, function() {
-                gaData[index] = sTitle + "\r\n\r\n" + sText;
-                
-                if (!checkAllDone(sMainTitle, iTotal))
-                {
-                    setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
-                }
-                log(" " + index + " parse done: LEN:" + sText.length);
-            });
+            setAndGetTextProcess(index, iTotal, sText, sMainTitle, sTitle, true);
         }
         
         log("Orignial " + index + " LEN:" + sText.length);
+    }
+}
+
+function setAndGetTextProcess(index, iTotal, sText, sMainTitle, sTitle, bCheckAllDone)
+{
+    async(function() {
+        sText = getRegularText(sText);
+        //sTitle = getRegularText(sTitle);
+
+    }, function() {
+        parseChapter(sText, index);
+        gaData[index] = "\r\n\r\n" + sText;
+        
+        var bAllDone = checkAllDone(sMainTitle, iTotal);
+        
+        if (!bCheckAllDone || !bAllDone)
+        {
+            setIconText("" + parseInt((getDoneCount() * 100 / iTotal), 10) + "%");
+        }
+        log(" " + index + " parse done: LEN:" + sText.length);
+    });
+}
+
+function parseChapter(sText, iPageIndex)
+{
+    var asTemp = sText.split(END_SYMBOL);
+    var asTemp2 = [];
+    var sTemp = "";
+    var iBegin, iEnd;
+    
+    if (!gasChapterTitle[iPageIndex])
+    {
+        gasChapterTitle[iPageIndex] = [];
+        gasChapterContent[iPageIndex] = [];
+    }
+    
+    
+    for (var i = 0; i < asTemp.length; i++)
+    {
+        var iChapterIndex = gasChapterTitle[iPageIndex].length;
+
+        sTemp = asTemp[i].trim();
+        asTemp2 = sTemp.split(/(\r|\n)+/);//.match(/\S+/g);
+        
+        log("+" + asTemp2.length + ":" + asTemp2[0]);
+        
+        gasChapterTitle[iPageIndex][iChapterIndex] = asTemp2[0];
+        
+        if (!asTemp2[i] || asTemp2[i].length < 2)
+        {
+            log(i + " ERR: asTemp2[i].length");
+            gasChapterContent[iPageIndex][iChapterIndex] = sTemp;
+            continue;
+        }
+        
+        iBegin = sTemp.indexOf(asTemp2[1]);
+        
+        if (iBegin < 0)
+        {
+            log(i + " ERR: iBegin < 0:[" + asTemp2[1] + "]");
+            gasChapterContent[iPageIndex][iChapterIndex] = sTemp;
+            continue;
+        }
+        
+        gasChapterContent[iPageIndex][iChapterIndex] = sTemp.substring(iBegin, sTemp.length);
+
+        /*
+        for (var j = 0; j < asTemp2.length; j++)
+        {
+            if (asTemp2[j].trim())
+            {
+                log(j + " > " + asTemp2[j]);
+                break;
+            }
+        }
+        */
     }
 }
 
@@ -883,6 +1081,7 @@ function checkAllDone(sMainTitle, iTotal)
         if (gbImageDone)
         {
             setIconText("OK-");
+            setEpubDownloadButton(sMainTitle);
         }
         
         log("Total " + iTotal + " volumes are all done !");
@@ -900,10 +1099,11 @@ function checkImageAllDone(sMainTitle)
         gbImageDone = true;
         
         setImageDownloadButton(sMainTitle);
-        
+
         if (gbTextDone)
         {
             setIconText("OK+");
+            setEpubDownloadButton(sMainTitle);
         }
         
         log("Total " + getTotalImageCount() + " images are all done !");
@@ -1080,6 +1280,8 @@ function getRegularText(sText, bPre)
     sText = sText.replace(/<p align/g, "\r\n<p align");
     sText = removeTag(sText);
     sText = sText.replace(/ -6park.com|留园网-|www.6park.com/g, "");
+    sText = sText.replace(/(本帖最後由.+編輯)/g, ""); // for EYNY
+     
     
     sText = sText.replace(/&nbsp;/g, " ");
     sText = sText.replace(/&lt;/g,'<').replace(/&gt;/g,'>');
@@ -1100,6 +1302,8 @@ function getRegularText(sText, bPre)
     */
     sText = jscc.toTC(sText);
     
+    //var myA = new namespace.b("x");
+    //myA.hi();
     
     return sText;
 }
